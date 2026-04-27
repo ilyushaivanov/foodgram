@@ -1,26 +1,24 @@
-from rest_framework import viewsets, mixins, status, filters
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import (
-    IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
-)
-from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
 from django.db.models import Sum
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, mixins, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import (AllowAny, IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
+from rest_framework.response import Response
 
-from foodgram.models import (
-    User, Tag, Ingredient, Recipe, RecipeIngredient,
-    Favorite, ShoppingCart, Follow, ShortLink
-)
-from .serializers import (
-    UserSerializer, UserCreateSerializer, ChangePasswordSerializer,
-    AvatarSerializer, TagSerializer, IngredientSerializer,
-    RecipeSerializer, RecipeCreateUpdateSerializer, SubscriptionSerializer,
-    FavoriteShoppingCartSerializer
-)
-from .permissions import IsAuthorOrReadOnly
+from foodgram.models import (Favorite, Follow, Ingredient, Recipe,
+                             RecipeIngredient, ShoppingCart, ShortLink, Tag,
+                             User)
+
 from .filters import RecipeFilter
+from .permissions import IsAuthorOrReadOnly
+from .serializers import (AvatarSerializer, ChangePasswordSerializer,
+                          FavoriteShoppingCartSerializer, IngredientSerializer,
+                          RecipeCreateUpdateSerializer, RecipeSerializer,
+                          SubscriptionSerializer, TagSerializer,
+                          UserCreateSerializer, UserSerializer)
 
 
 class UserViewSet(viewsets.ModelViewSet):

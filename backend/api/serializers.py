@@ -1,13 +1,12 @@
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from django.core.files.base import ContentFile
 import base64
 import uuid
 
-from foodgram.models import (
-    Profile, Unit, Tag, Ingredient, Recipe, RecipeIngredient,
-    Favorite, ShoppingCart, Follow
-)
+from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
+from rest_framework import serializers
+
+from foodgram.models import (Favorite, Follow, Ingredient, Profile, Recipe,
+                             RecipeIngredient, ShoppingCart, Tag, Unit)
 
 User = get_user_model()
 

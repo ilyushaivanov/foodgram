@@ -1,10 +1,9 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth import get_user_model
-from .models import (
-    Profile, Tag, Ingredient, Recipe,
-    RecipeIngredient, Favorite, ShoppingCart,
-    Follow, ShortLink)
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+
+from .models import (Favorite, Follow, Ingredient, Profile, Recipe,
+                     RecipeIngredient, ShoppingCart, ShortLink, Tag)
 
 User = get_user_model()
 
