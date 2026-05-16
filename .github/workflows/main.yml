@@ -86,48 +86,20 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/foodgram_frontend:latest
 
-  deploy:
+  test_ssh:
     runs-on: ubuntu-latest
-    needs: 
-      - build_and_push_backend
-      - build_and_push_frontend
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-
-      - name: Add server to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
-
-      - name: Copy files via scp
-        run: |
-          scp -o StrictHostKeyChecking=no infra/docker-compose.production.yml infra/nginx.conf ${{ secrets.USER }}@${{ secrets.HOST }}:~/foodgram/
-
-      - name: Deploy containers
+      - name: Test SSH connection
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd ~/foodgram
-            sudo docker compose -f docker-compose.production.yml pull
-            sudo docker compose -f docker-compose.production.yml down
-            sudo docker compose -f docker-compose.production.yml up -d
-            sudo docker compose -f docker-compose.production.yml exec backend python manage.py migrate --noinput
-            sudo docker compose -f docker-compose.production.yml exec backend python manage.py collectstatic --noinput
-            sudo docker compose -f docker-compose.production.yml exec backend cp -r /app/collected_static/. /backend_static/static/ || true
-            sudo docker system prune -af
+          script: echo "Connected successfully"
 
   send_message:
     runs-on: ubuntu-latest
-    needs: deploy
+    needs: test_ssh
     steps:
     - name: Send Telegram message
       uses: appleboy/telegram-action@master
