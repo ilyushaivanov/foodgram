@@ -95,7 +95,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
-          script: echo "Connected successfully"
+          script: cd ~
 
   send_message:
     runs-on: ubuntu-latest
