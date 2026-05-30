@@ -113,8 +113,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
       - name: Copy docker-compose.yml via ssh
-        uses: appleboy/scp-action@master
+        uses: appleboy/scp-action@v1
         with:
+          debug: true
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
@@ -122,8 +123,9 @@ jobs:
           source: "infra/docker-compose.production.yml"
           target: "foodgram"
       - name: Executing remote ssh commands to deploy
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1
         with:
+          debug: true
           host: ${{secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
