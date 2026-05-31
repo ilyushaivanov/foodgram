@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:13.10
+        image: postgres:14-alpine
         env:
           POSTGRES_USER: foodgram_user
           POSTGRES_PASSWORD: foodgram_password
