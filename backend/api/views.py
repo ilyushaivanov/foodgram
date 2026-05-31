@@ -246,11 +246,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         content = "Список покупок:\n\n"
         for item in ingredients:
-            content += f"{
-                item['ingredient__title']
-            } – {item['total_amount']} {
-                item['ingredient__measurement_unit__title']
-            }"
+            content += (
+                f"{item['ingredient__title']} – {item['total_amount']} "
+                f"{item['ingredient__measurement_unit__title']}\n"
+            )
 
         response = HttpResponse(content, content_type='text/plain')
         response[

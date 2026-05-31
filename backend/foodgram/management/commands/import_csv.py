@@ -47,9 +47,7 @@ class Command(BaseCommand):
                     )
                     if unit_created and verbose:
                         self.stdout.write(
-                            f'  Создана единица: {
-                                unit_name
-                            } (slug: {unit.slug})'
+                            f'Создана единица: {unit_name} (slug: {unit.slug})'
                         )
 
                     obj, created = Ingredient.objects.get_or_create(
