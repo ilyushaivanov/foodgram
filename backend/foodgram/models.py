@@ -3,6 +3,7 @@ import string
 
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -98,7 +99,7 @@ class Recipe(models.Model):
         upload_to='recipes/',
         verbose_name='Картинка'
     )
-    description = models.CharField(
+    text = models.CharField(
         max_length=256,
         verbose_name='Текстовое описание'
     )
@@ -114,6 +115,10 @@ class Recipe(models.Model):
     )
     cooking_time = models.PositiveSmallIntegerField(
         verbose_name='Время приготовления (мин)'
+    )
+    pub_date = models.DateTimeField(
+        default=timezone.now,
+        verbose_name='Дата публикации'
     )
 
     class Meta:
@@ -265,4 +270,4 @@ class ShortLink(models.Model):
                 return code
 
     def __str__(self):
-        return f'{self.recipe.name} -> {self.code}'
+        return f'{self.recipe.title} -> {self.code}'

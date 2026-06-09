@@ -18,17 +18,22 @@ class UnitSerializer(serializers.ModelSerializer):
 
 
 class TagSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source='title', read_only=True)
+
     class Meta:
         model = Tag
-        fields = ['id', 'title', 'slug']
+        fields = ['id', 'name', 'slug']
 
 
 class IngredientSerializer(serializers.ModelSerializer):
-    measurement_unit = UnitSerializer(read_only=True)
+    name = serializers.CharField(source='title', read_only=True)
+    measurement_unit = serializers.CharField(
+        source='measurement_unit.title', read_only=True
+    )
 
     class Meta:
         model = Ingredient
-        fields = ['id', 'title', 'measurement_unit']
+        fields = ['id', 'name', 'measurement_unit']
 
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
@@ -37,7 +42,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
     measurement_unit = serializers.CharField(
         source='ingredient.measurement_unit.title', read_only=True
     )
-    amount = serializers.DecimalField(max_digits=8, decimal_places=2)
+    amount = serializers.FloatField()
 
     class Meta:
         model = RecipeIngredient
@@ -51,8 +56,9 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'email', 'id', 'username', 'first_name',
-            'last_name', 'is_subscribed', 'avatar'
+            'email', 'id', 'username',
+            'first_name', 'last_name',
+            'is_subscribed', 'avatar'
         ]
 
     def get_is_subscribed(self, obj):
@@ -107,6 +113,12 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return user
 
 
+class UserCreateResponseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'username', 'first_name', 'last_name']
+
+
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True)
@@ -132,11 +144,12 @@ class AvatarSerializer(serializers.ModelSerializer):
 
 
 class RecipeShortSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source='title', read_only=True)
     image = serializers.ImageField()
 
     class Meta:
         model = Recipe
-        fields = ['id', 'title', 'image', 'cooking_time']
+        fields = ['id', 'name', 'image', 'cooking_time']
 
 
 class FavoriteShoppingCartSerializer(serializers.ModelSerializer):
@@ -181,13 +194,15 @@ class RecipeSerializer(serializers.ModelSerializer):
     )
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
+    name = serializers.CharField(source='title', read_only=True)
+    text = serializers.CharField(read_only=True)
     image = serializers.ImageField()
 
     class Meta:
         model = Recipe
         fields = [
             'id', 'tags', 'author', 'ingredients', 'is_favorited',
-            'is_in_shopping_cart', 'title', 'image', 'description',
+            'is_in_shopping_cart', 'name', 'image', 'text',
             'cooking_time'
         ]
 
@@ -213,7 +228,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         write_only=True, required=True, source='title'
     )
     text = serializers.CharField(
-        write_only=True, required=True, source='description'
+        write_only=True, required=True
     )
     image = serializers.CharField(write_only=True, required=True)
     ingredients = serializers.ListField(
@@ -229,6 +244,19 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'name', 'text', 'image', 'ingredients', 'tags', 'cooking_time'
         ]
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request and request.method in ['PUT', 'PATCH']:
+            if 'ingredients' not in self.initial_data:
+                raise serializers.ValidationError(
+                    {'ingredients': 'Обязательное поле.'}
+                )
+            if 'tags' not in self.initial_data:
+                raise serializers.ValidationError(
+                    {'tags': 'Обязательное поле.'}
+                )
+        return attrs
 
     def validate_ingredients(self, value):
         if not value:
@@ -311,14 +339,14 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         tags = validated_data.pop('tags')
         image_data = validated_data.pop('image')
         title = validated_data.pop('title')
-        description = validated_data.pop('description')
+        text = validated_data.pop('text')
         cooking_time = validated_data.pop('cooking_time')
         author = self.context['request'].user
 
         image = self._decode_image(image_data)
         recipe = Recipe.objects.create(
             title=title,
-            description=description,
+            text=text,
             image=image,
             cooking_time=cooking_time,
             author=author
@@ -330,7 +358,8 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
             RecipeIngredient.objects.create(
                 recipe=recipe,
                 ingredient=ingredient,
-                amount=item['amount']
+                amount=item['amount'],
+                unit=ingredient.measurement_unit
             )
         return recipe
 
@@ -339,13 +368,13 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         tags = validated_data.pop('tags', None)
         image_data = validated_data.pop('image', None)
         title = validated_data.pop('title', None)
-        description = validated_data.pop('description', None)
+        text = validated_data.pop('text', None)
         cooking_time = validated_data.pop('cooking_time', None)
 
         if title is not None:
             instance.title = title
-        if description is not None:
-            instance.description = description
+        if text is not None:
+            instance.description = text
         if cooking_time is not None:
             instance.cooking_time = cooking_time
         if image_data is not None:
@@ -362,6 +391,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                 RecipeIngredient.objects.create(
                     recipe=instance,
                     ingredient=ingredient,
-                    amount=item['amount']
+                    amount=item['amount'],
+                    unit=ingredient.measurement_unit
                 )
         return instance

@@ -1,3 +1,7 @@
+import base64
+import uuid
+
+from django.core.files.base import ContentFile
 from django.db.models import Sum
 from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
@@ -6,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import (AllowAny, IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
+from rest_framework.pagination import LimitOffsetPagination
 
 from foodgram.models import (Favorite, Follow, Ingredient, Recipe,
                              RecipeIngredient, ShoppingCart, ShortLink, Tag,
@@ -17,12 +22,14 @@ from .serializers import (AvatarSerializer, ChangePasswordSerializer,
                           FavoriteShoppingCartSerializer, IngredientSerializer,
                           RecipeCreateUpdateSerializer, RecipeSerializer,
                           SubscriptionSerializer, TagSerializer,
-                          UserCreateSerializer, UserSerializer)
+                          UserCreateSerializer, UserSerializer,
+                          UserCreateResponseSerializer)
 
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('id')
     permission_classes = [AllowAny]
+    pagination_class = LimitOffsetPagination
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -36,6 +43,13 @@ class UserViewSet(viewsets.ModelViewSet):
         elif self.action == 'subscriptions':
             return SubscriptionSerializer
         return UserSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        output_serializer = UserCreateResponseSerializer(user)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=[
         'get'
@@ -55,21 +69,49 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=False, methods=[
-        'put', 'delete'
-    ], permission_classes=[IsAuthenticated], url_path='me/avatar')
+    @action(detail=False,
+            methods=['put', 'delete'],
+            permission_classes=[IsAuthenticated],
+            url_path='me/avatar')
     def avatar(self, request):
         profile = request.user.profile
         if request.method == 'PUT':
-            serializer = self.get_serializer(profile, data=request.data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(
-                {'avatar': request.build_absolute_uri(profile.avatar.url)}
-            )
-        elif request.method == 'DELETE':
-            profile.avatar.delete()
+            avatar_data = request.data.get('avatar')
+            if not avatar_data:
+                return Response(
+                    {'avatar': ['Обязательное поле.']},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            try:
+                if ';base64,' in avatar_data:
+                    format, imgstr = avatar_data.split(';base64,')
+                    ext = format.split('/')[-1]
+                    avatar_file = ContentFile(
+                        base64.b64decode(imgstr),
+                        name=f'avatar_{uuid.uuid4()}.{ext}'
+                    )
+                else:
+                    return Response(
+                        {'avatar': ['Неверный формат. Ожидается base64.']},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Exception:
+                return Response(
+                    {'avatar': ['Неверный формат base64.']},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if profile.avatar:
+                profile.avatar.delete()
+            profile.avatar = avatar_file
             profile.save()
+            avatar_url = request.build_absolute_uri(profile.avatar.url)
+            return Response({'avatar': avatar_url}, status=status.HTTP_200_OK)
+
+        elif request.method == 'DELETE':
+            if profile.avatar:
+                profile.avatar.delete()
+                profile.save()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=[
@@ -126,6 +168,15 @@ class UserViewSet(viewsets.ModelViewSet):
                 )
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
 
 class TagViewSet(
     mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
@@ -158,8 +209,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return RecipeCreateUpdateSerializer
         return RecipeSerializer
 
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        recipe = serializer.save(author=request.user)
+        output_serializer = RecipeSerializer(
+            recipe, context={'request': request}
+        )
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):
@@ -256,3 +313,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
             'Content-Disposition'
         ] = 'attachment; filename="shopping_cart.txt"'
         return response
+
+    def filter_queryset(self, queryset):
+        filterset = self.filterset_class(
+            self.request.GET, queryset=queryset, request=self.request
+        )
+        return filterset.qs

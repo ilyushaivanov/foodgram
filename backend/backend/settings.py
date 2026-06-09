@@ -55,8 +55,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 10,
+    'PAGE_SIZE_QUERY_PARAM': 'limit',
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
@@ -123,6 +124,11 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    },
+
+    'sub': {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
         'NAME': os.getenv('POSTGRES_DB', 'foodgram'),
         'USER': os.getenv('POSTGRES_USER', 'foodgram_user'),
