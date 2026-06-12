@@ -19,11 +19,12 @@ from foodgram.models import (Favorite, Follow, Ingredient, Recipe,
 from .filters import RecipeFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, ChangePasswordSerializer,
-                          FavoriteShoppingCartSerializer, IngredientSerializer,
+                          IngredientSerializer,
                           RecipeCreateUpdateSerializer, RecipeSerializer,
                           SubscriptionSerializer, TagSerializer,
                           UserCreateSerializer, UserSerializer,
-                          UserCreateResponseSerializer)
+                          UserCreateResponseSerializer,
+                          FavoriteAddResponseSerializer)
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -242,7 +243,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                         'error': 'Уже в избранном'
                     }, status=status.HTTP_400_BAD_REQUEST
                 )
-            serializer = FavoriteShoppingCartSerializer(recipe)
+            serializer = FavoriteAddResponseSerializer(recipe)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         elif request.method == 'DELETE':
             deleted, _ = Favorite.objects.filter(
@@ -272,7 +273,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                         'error': 'Уже в корзине'
                     }, status=status.HTTP_400_BAD_REQUEST
                 )
-            serializer = FavoriteShoppingCartSerializer(recipe)
+            serializer = FavoriteAddResponseSerializer(recipe)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         elif request.method == 'DELETE':
             deleted, _ = ShoppingCart.objects.filter(
@@ -314,8 +315,19 @@ class RecipeViewSet(viewsets.ModelViewSet):
         ] = 'attachment; filename="shopping_cart.txt"'
         return response
 
-    def filter_queryset(self, queryset):
-        filterset = self.filterset_class(
-            self.request.GET, queryset=queryset, request=self.request
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=partial
         )
-        return filterset.qs
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        output_serializer = RecipeSerializer(
+            instance, context={'request': request}
+        )
+        return Response(output_serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)

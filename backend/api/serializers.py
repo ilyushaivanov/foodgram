@@ -160,6 +160,15 @@ class FavoriteShoppingCartSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'image', 'cooking_time']
 
 
+class FavoriteAddResponseSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source='title', read_only=True)
+    image = serializers.ImageField()
+
+    class Meta:
+        model = Recipe
+        fields = ['id', 'name', 'image', 'cooking_time']
+
+
 class SubscriptionSerializer(UserSerializer):
     recipes = serializers.SerializerMethodField()
     recipes_count = serializers.IntegerField(
