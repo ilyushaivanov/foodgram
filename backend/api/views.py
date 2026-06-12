@@ -19,8 +19,8 @@ from foodgram.models import (Favorite, Follow, Ingredient, Recipe,
 from .filters import RecipeFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, ChangePasswordSerializer,
-                          IngredientSerializer,
-                          RecipeCreateUpdateSerializer, RecipeSerializer,
+                          IngredientSerializer, RecipeCreateUpdateSerializer,
+                          RecipeSerializer,
                           SubscriptionSerializer, TagSerializer,
                           UserCreateSerializer, UserSerializer,
                           UserCreateResponseSerializer,
