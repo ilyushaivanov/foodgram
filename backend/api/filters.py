@@ -26,7 +26,6 @@ class RecipeFilter(django_filters.FilterSet):
         return queryset
 
     def filter_is_in_shopping_cart(self, queryset, name, value):
-        print(f"User: {self.request.user}, is_authenticated: {self.request.user.is_authenticated}, value: {value}")
         if value and self.request.user.is_authenticated:
             return queryset.filter(shopping_cart__user=self.request.user)
         return queryset
