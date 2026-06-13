@@ -12,6 +12,7 @@ class RecipeFilter(django_filters.FilterSet):
     author = django_filters.NumberFilter(field_name='author__id')
     is_favorited = django_filters.BooleanFilter(method='filter_is_favorited')
     is_in_shopping_cart = django_filters.BooleanFilter(
+        field_name='shopping_cart',
         method='filter_is_in_shopping_cart'
     )
 
@@ -25,6 +26,7 @@ class RecipeFilter(django_filters.FilterSet):
         return queryset
 
     def filter_is_in_shopping_cart(self, queryset, name, value):
+        print(f"User: {self.request.user}, is_authenticated: {self.request.user.is_authenticated}, value: {value}")
         if value and self.request.user.is_authenticated:
-            return queryset.filter(shoppingcart_set__user=self.request.user)
+            return queryset.filter(shopping_cart__user=self.request.user)
         return queryset
