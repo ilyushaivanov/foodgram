@@ -2,6 +2,7 @@ import base64
 import uuid
 
 from django.contrib.auth import get_user_model
+from django.core.validators import RegexValidator
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 
@@ -9,6 +10,12 @@ from foodgram.models import (Favorite, Follow, Ingredient, Profile, Recipe,
                              RecipeIngredient, ShoppingCart, Tag, Unit)
 
 User = get_user_model()
+
+username_validator = RegexValidator(
+    regex=r'^[\w.@+-]+\Z',
+    message='Введите корректное имя пользователя.',
+    code='invalid_username'
+)
 
 
 class UnitSerializer(serializers.ModelSerializer):
@@ -72,7 +79,9 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True, max_length=254)
-    username = serializers.CharField(required=True, max_length=150)
+    username = serializers.CharField(
+        required=True, max_length=150, validators=[username_validator]
+    )
     first_name = serializers.CharField(required=True, max_length=150)
     last_name = serializers.CharField(required=True, max_length=150)
     password = serializers.CharField(
