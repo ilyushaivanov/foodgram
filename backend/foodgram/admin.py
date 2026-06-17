@@ -32,13 +32,14 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
-    list_display = ('title', 'measurement_unit')
-    search_fields = ('title',)
+    list_display = ('name', 'measurement_unit')
+    search_fields = ('name',)
 
 
 class RecipeIngredientInline(admin.TabularInline):
     model = RecipeIngredient
     extra = 1
+    min_num = 1
 
 
 @admin.register(Recipe)
@@ -68,9 +69,3 @@ class ShoppingCartAdmin(admin.ModelAdmin):
 class FollowAdmin(admin.ModelAdmin):
     list_display = ('user', 'author')
     search_fields = ('user__username', 'author__username')
-
-
-@admin.register(ShortLink)
-class ShortLinkAdmin(admin.ModelAdmin):
-    list_display = ('code', 'recipe')
-    search_fields = ('code',)

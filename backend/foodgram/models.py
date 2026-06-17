@@ -2,8 +2,19 @@ import secrets
 import string
 
 from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
+
+from foodgram.constants import (
+    MAX_LENGTH_TITLE,
+    MAX_LENGTH_SLUG,
+    MAX_LENGTH_UNIT,
+    MAX_LENGTH_CODE,
+    MIN_COOKING_TIME,
+    MAX_COOKING_TIME,
+    MIN_AMOUNT_VALUE
+)
 
 User = get_user_model()
 
@@ -21,36 +32,22 @@ class Profile(models.Model):
         verbose_name='Аватар'
     )
 
+    class Meta:
+        verbose_name = 'Профиль'
+        verbose_name_plural = 'Профили'
+        ordering = ['user__username']
+
     def __str__(self):
         return f'{self.user.username} profile'
 
 
-class Unit(models.Model):
-    title = models.CharField(
-        max_length=50,
-        unique=True,
-        verbose_name='Название'
-    )
-    slug = models.SlugField(
-        max_length=50,
-        unique=True,
-        verbose_name='Slug'
-    )
-
-    class Meta:
-        verbose_name = 'Единица измерения'
-        verbose_name_plural = 'Единицы измерения'
-
-    def __str__(self):
-        return self.title
-
-
 class Tag(models.Model):
     title = models.CharField(
-        max_length=256,
+        max_length=MAX_LENGTH_TITLE,
         verbose_name='Название'
     )
     slug = models.SlugField(
+        max_length=MAX_LENGTH_SLUG,
         unique=True,
         verbose_name='Slug',
     )
@@ -58,30 +55,31 @@ class Tag(models.Model):
     class Meta:
         verbose_name = 'Тег'
         verbose_name_plural = 'Теги'
+        ordering = ['title']
 
     def __str__(self):
         return self.title
 
 
 class Ingredient(models.Model):
-    title = models.CharField(
-        max_length=256,
+    name = models.CharField(
+        max_length=MAX_LENGTH_TITLE,
         unique=True,
         verbose_name='Название'
     )
-    measurement_unit = models.ForeignKey(
-        Unit,
-        on_delete=models.CASCADE,
-        max_length=30,
+    measurement_unit = models.CharField(
+        max_length=MAX_LENGTH_UNIT,
+        default='г',
         verbose_name='Единица измерения'
     )
 
     class Meta:
         verbose_name = 'Ингредиент'
         verbose_name_plural = 'Ингредиенты'
+        ordering = ['title']
 
     def __str__(self):
-        return self.title
+        return f'{self.name} ({self.measurement_unit})'
 
 
 class Recipe(models.Model):
@@ -92,7 +90,7 @@ class Recipe(models.Model):
         verbose_name='Автор Рецепта',
     )
     title = models.CharField(
-        max_length=256,
+        max_length=MAX_LENGTH_TITLE,
         verbose_name='Название'
     )
     image = models.ImageField(
@@ -100,7 +98,6 @@ class Recipe(models.Model):
         verbose_name='Картинка'
     )
     text = models.CharField(
-        max_length=256,
         verbose_name='Текстовое описание'
     )
     ingredients = models.ManyToManyField(
@@ -114,16 +111,40 @@ class Recipe(models.Model):
         verbose_name='Теги'
     )
     cooking_time = models.PositiveSmallIntegerField(
-        verbose_name='Время приготовления (мин)'
+        verbose_name='Время приготовления (мин)',
+        validators=[
+            MinValueValidator(MIN_COOKING_TIME),
+            MaxValueValidator(MAX_COOKING_TIME),
+        ]
     )
     pub_date = models.DateTimeField(
         default=timezone.now,
         verbose_name='Дата публикации'
     )
+    short_code = models.CharField(
+        max_length=MAX_LENGTH_CODE,
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name='Короткий код'
+    )
+
+    def generate_unique_code(self, length=6):
+        alphabet = string.ascii_letters + string.digits
+        while True:
+            code = ''.join(secrets.choice(alphabet) for _ in range(length))
+            if not Recipe.objects.filter(short_code=code).exists():
+                return code
+
+    def save(self, *args, **kwargs):
+        if not self.short_code:
+            self.short_code = self.generate_unique_code()
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = 'Рецепт'
         verbose_name_plural = 'Рецепты'
+        ordering = ['-pub_date']
 
     def __str__(self):
         return self.title
@@ -141,20 +162,15 @@ class RecipeIngredient(models.Model):
         on_delete=models.CASCADE,
         verbose_name='Ингредиент'
     )
-    amount = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        verbose_name='Количество'
-    )
-    unit = models.ForeignKey(
-        Unit,
-        on_delete=models.PROTECT,
-        verbose_name='Единица измерения'
+    amount = models.PositiveSmallIntegerField(
+        verbose_name='Количество',
+        validators=[MinValueValidator(MIN_AMOUNT_VALUE)]
     )
 
     class Meta:
         verbose_name = 'Ингредиент рецепта'
         verbose_name_plural = 'Ингредиенты рецепта'
+        ordering = ['recipe', 'ingredient']
         constraints = [
             models.UniqueConstraint(
                 fields=['recipe', 'ingredient'],
@@ -163,7 +179,7 @@ class RecipeIngredient(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.ingredient.title} – {self.amount} {self.unit.title}'
+        return f'{self.ingredient.name} – {self.amount} {self.unit.title}'
 
 
 class Favorite(models.Model):
@@ -181,6 +197,7 @@ class Favorite(models.Model):
     class Meta:
         verbose_name = 'Избранное'
         verbose_name_plural = 'Избранное'
+        ordering = ['user', 'recipe']
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'recipe'],
@@ -207,6 +224,7 @@ class ShoppingCart(models.Model):
     class Meta:
         verbose_name = 'Корзина покупок'
         verbose_name_plural = 'Корзина покупок'
+        ordering = ['user', 'recipe']
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'recipe'],
@@ -233,6 +251,7 @@ class Follow(models.Model):
     class Meta:
         verbose_name = 'Подписка'
         verbose_name_plural = 'Подписки'
+        ordering = ['user', 'author']
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'author'],
@@ -242,32 +261,3 @@ class Follow(models.Model):
 
     def __str__(self):
         return f'{self.user.username} подписан на {self.author.username}'
-
-
-class ShortLink(models.Model):
-    recipe = models.OneToOneField(
-        Recipe,
-        on_delete=models.CASCADE,
-        related_name='short_link'
-    )
-    code = models.CharField(
-        max_length=10,
-        unique=True,
-        db_index=True
-    )
-
-    def save(self, *args, **kwargs):
-        if not self.code:
-            self.code = self.generate_unique_code()
-        super().save(*args, **kwargs)
-
-    @staticmethod
-    def generate_unique_code(length=6):
-        alphabet = string.ascii_letters + string.digits
-        while True:
-            code = ''.join(secrets.choice(alphabet) for _ in range(length))
-            if not ShortLink.objects.filter(code=code).exists():
-                return code
-
-    def __str__(self):
-        return f'{self.recipe.title} -> {self.code}'

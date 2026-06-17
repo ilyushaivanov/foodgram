@@ -4,11 +4,11 @@ import os
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from foodgram.models import Ingredient, Unit
+from foodgram.models import Ingredient
 
 
 class Command(BaseCommand):
-    help = 'Импорт ингредиентов из CSV'
+    help = 'Импорт ингредиентов из CSV (оптимизированный)'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -28,41 +28,46 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f'Файл {filepath} не найден'))
             return
 
-        self.stdout.write('Импорт ингредиентов...')
+        self.stdout.write('Чтение CSV...')
+        ingredients_data = []
         try:
-            count = 0
             with open(filepath, 'r', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 for row in reader:
                     if not row or len(row) < 2:
                         continue
-                    title = row[0].strip()
-                    unit_name = row[1].strip()
-                    if not title or not unit_name:
-                        continue
-
-                    unit, unit_created = Unit.objects.get_or_create(
-                        title=unit_name,
-                        defaults={'slug': unit_name.lower().replace(' ', '_')}
-                    )
-                    if unit_created and verbose:
-                        self.stdout.write(
-                            f'Создана единица: {unit_name} (slug: {unit.slug})'
-                        )
-
-                    obj, created = Ingredient.objects.get_or_create(
-                        title=title,
-                        measurement_unit=unit
-                    )
-                    if created:
-                        count += 1
-                        if verbose:
-                            self.stdout.write(
-                                f'  Добавлен ингредиент: {title} ({unit_name})'
-                            )
-            self.stdout.write(
-                self.style.SUCCESS(f'Импортировано ингредиентов: {count}')
-            )
+                    name = row[0].strip()
+                    measurement_unit = row[1].strip()
+                    if name and measurement_unit:
+                        ingredients_data.append((name, measurement_unit))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Ошибка импорта: {e}'))
+            self.stdout.write(self.style.ERROR(f'Ошибка чтения файла: {e}'))
+            return
+
+        if not ingredients_data:
+            self.stdout.write(self.style.WARNING('Нет данных для импорта'))
+            return
+
+        ingredients_to_create = [
+            Ingredient(name=name, measurement_unit=unit)
+            for name, unit in ingredients_data
+        ]
+
+        try:
+            created_ingredients = Ingredient.objects.bulk_create(
+                ingredients_to_create,
+                ignore_conflicts=True
+            )
+            created_count = len(created_ingredients)
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'Импортировано ингредиентов: {created_count} '
+                    f'(всего строк в CSV: {len(ingredients_data)})'
+                )
+            )
+            if verbose:
+                for ing in created_ingredients:
+                    self.stdout.write(f'  Добавлен: {ing.name}')
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'Ошибка при bulk_create: {e}'))
             raise
