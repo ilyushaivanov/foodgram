@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator
 from rest_framework import serializers
+from djoser.serializers import (
+    UserCreateSerializer as DjoserUserCreateSerializer
+)
 
 from foodgram.models import (Favorite, Follow, Ingredient, Profile, Recipe,
                              RecipeIngredient, ShoppingCart, Tag)
@@ -8,6 +11,32 @@ from foodgram.models import (Favorite, Follow, Ingredient, Profile, Recipe,
 from drf_extra_fields.fields import Base64ImageField
 
 User = get_user_model()
+"""Ваши замечания полностью ломают спецификацию Api и я"""
+"""уже отчаялся чтобы привести все обратно в рабочее состояние"""
+"""У меня осталось 3 дня до 21 числа чтобы это сдать"""
+"""Что мне делать я не знаю, пишу так потому что нет возможности связаться"""
+
+
+class CustomUserCreateSerializer(DjoserUserCreateSerializer):
+    """Также вы сказали использовать стандартный сериализатор djoser"""
+    """для пользователя но также из за него не"""
+    """получается привести к спецификации."""
+    email = serializers.EmailField(required=True)
+    first_name = serializers.CharField(required=True, max_length=150)
+    last_name = serializers.CharField(required=True, max_length=150)
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                "Пользователь с таким email уже существует."
+            )
+        return value
+
+    class Meta(DjoserUserCreateSerializer.Meta):
+        fields = (
+            'id', 'username', 'email', 'password', 'first_name', 'last_name'
+        )
+
 
 username_validator = RegexValidator(
     regex=r'^[\w.@+-]+\Z',
@@ -35,8 +64,9 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='ingredient.id', read_only=True)
     name = serializers.CharField(source='ingredient.title', read_only=True)
     measurement_unit = serializers.CharField(
-        source='ingredient.measurement_unit.title', read_only=True
+        source='ingredient.measurement_unit', read_only=True
     )
+    amount = serializers.IntegerField()
 
     class Meta:
         model = RecipeIngredient
@@ -45,7 +75,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     is_subscribed = serializers.SerializerMethodField()
-    avatar = Base64ImageField(source='profile.avatar', read_only=True)
+    avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -54,6 +84,13 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name', 'last_name',
             'is_subscribed', 'avatar'
         ]
+
+    def get_avatar(self, obj):
+        if hasattr(obj, 'profile') and obj.profile and obj.profile.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.profile.avatar.url)
+        return None
 
     def get_is_subscribed(self, obj):
         request = self.context.get('request')
@@ -91,7 +128,7 @@ class UserCreateResponseSerializer(serializers.ModelSerializer):
 
 
 class AvatarSerializer(serializers.ModelSerializer):
-    avatar = serializers.ImageField()
+    avatar = Base64ImageField(required=True)
 
     class Meta:
         model = Profile
@@ -241,12 +278,12 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
     ingredients = serializers.ListField(
         child=IngredientCreateSerializer(),
         write_only=True,
-        required=False
+        required=True
     )
     tags = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Tag.objects.all(),
-        required=False
+        required=True
     )
     cooking_time = serializers.IntegerField(required=True, min_value=1)
 
@@ -290,10 +327,14 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         instance.ingredient_amounts.all().delete()
         self._create_ingredients(instance, ingredients_data)
 
-    def create(self, validated_data):
+    def create(self, validated_data, **kwargs):
+        author = kwargs.get('author')
+        if author is None:
+            author = self.context['request'].user
+
         ingredients_data = validated_data.pop('ingredients')
         tags = validated_data.pop('tags')
-        author = self.context['request'].user
+
         recipe = Recipe.objects.create(
             **validated_data,
             author=author

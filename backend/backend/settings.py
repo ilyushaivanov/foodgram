@@ -12,11 +12,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 from django.core.management.utils import get_random_secret_key
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -28,7 +31,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', get_random_secret_key())
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+ALLOWED_HOSTS = ['158.160.90.3', '127.0.0.1', 'localhost', 'foodgram0891.duckdns.org']
 
 
 # Application definition
@@ -74,7 +77,7 @@ DJOSER = {
     'USER_CREATE_PASSWORD_RETYPE': False,
     'HIDE_USERS': False,
     'SERIALIZERS': {
-        'user_create': 'djoser.serializers.UserCreateSerializer',
+        'user_create': 'api.serializers.CustomUserCreateSerializer',
         'user': 'api.serializers.UserSerializer',
         'current_user': 'api.serializers.UserSerializer',
     },
@@ -83,10 +86,12 @@ DJOSER = {
     },
 }
 
+
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'api.authentication.EmailAuthBackend',
 ]
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

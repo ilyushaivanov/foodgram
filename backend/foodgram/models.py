@@ -76,7 +76,7 @@ class Ingredient(models.Model):
     class Meta:
         verbose_name = 'Ингредиент'
         verbose_name_plural = 'Ингредиенты'
-        ordering = ['title']
+        ordering = ['name']
 
     def __str__(self):
         return f'{self.name} ({self.measurement_unit})'
@@ -179,7 +179,9 @@ class RecipeIngredient(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.ingredient.name} – {self.amount} {self.unit.title}'
+        return f'{self.ingredient.name} – {self.amount} {
+            self.ingredient.measurement_unit
+        }'
 
 
 class Favorite(models.Model):

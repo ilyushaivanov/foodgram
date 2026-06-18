@@ -48,7 +48,7 @@ class UserViewSet(DjoserUserViewSet):
     ], permission_classes=[IsAuthenticated], url_path='me/avatar')
     def avatar(self, request):
         profile = request.user.profile
-        serializer = AvatarSerializer(profile, data=request.data, partial=True)
+        serializer = AvatarSerializer(profile, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         avatar_url = request.build_absolute_uri(profile.avatar.url)
@@ -78,7 +78,7 @@ class UserViewSet(DjoserUserViewSet):
     @action(detail=True, methods=[
         'post'
     ], permission_classes=[IsAuthenticated], url_path='subscribe')
-    def subscribe(self, request, pk=None):
+    def subscribe(self, request, pk=None, *args, **kwargs):
         author = self.get_object()
         serializer = FollowCreateSerializer(
             data={'author': author.id},
@@ -95,7 +95,7 @@ class UserViewSet(DjoserUserViewSet):
         )
 
     @subscribe.mapping.delete
-    def unsubscribe(self, request, pk=None):
+    def unsubscribe(self, request, pk=None, *args, **kwargs):
         author = self.get_object()
         deleted, _ = Follow.objects.filter(
             user=request.user, author=author
@@ -126,6 +126,7 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
 
 class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all().order_by('-id')
+    lookup_field = 'pk'
     permission_classes = [IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
@@ -134,6 +135,22 @@ class RecipeViewSet(viewsets.ModelViewSet):
         if self.action in ('create', 'update', 'partial_update'):
             return RecipeCreateUpdateSerializer
         return RecipeSerializer
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        recipe = serializer.save(author=request.user)
+        output_serializer = RecipeSerializer(recipe, context={'request': request})
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        output_serializer = RecipeSerializer(instance, context={'request': request})
+        return Response(output_serializer.data)
 
     @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):
@@ -141,11 +158,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
         base_url = request.build_absolute_uri('/')[:-1]
         short_url = f"{base_url}/s/{recipe.short_code}"
         return Response({'short-link': short_url})
-
-    def redirect_to_recipe(request, code):
-        recipe = get_object_or_404(Recipe, short_code=code)
-        redirect_url = request.build_absolute_uri(f'/api/recipes/{recipe.id}/')
-        return HttpResponseRedirect(redirect_url)
 
     @action(detail=True, methods=[
         'post'
@@ -216,15 +228,15 @@ class RecipeViewSet(viewsets.ModelViewSet):
         ingredients = RecipeIngredient.objects.filter(
             recipe_id__in=cart_recipes
         ).values(
-            'ingredient__title',
-            'ingredient__measurement_unit__title'
-        ).annotate(total_amount=Sum('amount')).order_by('ingredient__title')
+            'ingredient__name',
+            'ingredient__measurement_unit'
+        ).annotate(total_amount=Sum('amount')).order_by('ingredient__name')
 
         content = "Список покупок:\n\n"
         for item in ingredients:
             content += (
-                f"{item['ingredient__title']} – {item['total_amount']} "
-                f"{item['ingredient__measurement_unit__title']}\n"
+                f"{item['ingredient__name']} – {item['total_amount']} "
+                f"{item['ingredient__measurement_unit']}\n"
             )
 
         response = HttpResponse(content, content_type='text/plain')
@@ -232,3 +244,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
             'Content-Disposition'
         ] = 'attachment; filename="shopping_cart.txt"'
         return response
+
+
+def redirect_to_recipe(request, code):
+    recipe = get_object_or_404(Recipe, short_code=code)
+    redirect_url = request.build_absolute_uri(f'/api/recipes/{recipe.id}/')
+    return HttpResponseRedirect(redirect_url)
