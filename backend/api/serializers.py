@@ -10,17 +10,12 @@ from foodgram.models import (Favorite, Follow, Ingredient, Profile, Recipe,
 
 from drf_extra_fields.fields import Base64ImageField
 
+from foodgram.constants import MAX_LENGTH_TITLE
+
 User = get_user_model()
-"""Ваши замечания полностью ломают спецификацию Api и я"""
-"""уже отчаялся чтобы привести все обратно в рабочее состояние"""
-"""У меня осталось 3 дня до 21 числа чтобы это сдать"""
-"""Что мне делать я не знаю, пишу так потому что нет возможности связаться"""
 
 
 class CustomUserCreateSerializer(DjoserUserCreateSerializer):
-    """Также вы сказали использовать стандартный сериализатор djoser"""
-    """для пользователя но также из за него не"""
-    """получается привести к спецификации."""
     email = serializers.EmailField(required=True)
     first_name = serializers.CharField(required=True, max_length=150)
     last_name = serializers.CharField(required=True, max_length=150)
@@ -62,7 +57,7 @@ class IngredientSerializer(serializers.ModelSerializer):
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='ingredient.id', read_only=True)
-    name = serializers.CharField(source='ingredient.title', read_only=True)
+    name = serializers.CharField(source='ingredient.name', read_only=True)
     measurement_unit = serializers.CharField(
         source='ingredient.measurement_unit', read_only=True
     )
@@ -75,7 +70,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     is_subscribed = serializers.SerializerMethodField()
-    avatar = serializers.SerializerMethodField()
+    avatar = serializers.ImageField(source='profile.avatar', read_only=True)
 
     class Meta:
         model = User
@@ -84,13 +79,6 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name', 'last_name',
             'is_subscribed', 'avatar'
         ]
-
-    def get_avatar(self, obj):
-        if hasattr(obj, 'profile') and obj.profile and obj.profile.avatar:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.profile.avatar.url)
-        return None
 
     def get_is_subscribed(self, obj):
         request = self.context.get('request')
@@ -105,7 +93,7 @@ class FollowCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = ['user', 'author']
-        read_only_fields = ['user']
+        read_only_fields = ['user',]
 
     def validate(self, attrs):
         user = self.context['request'].user
@@ -132,7 +120,7 @@ class AvatarSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ('avatar')
+        fields = ('avatar',)
 
 
 class RecipeShortSerializer(serializers.ModelSerializer):
@@ -271,7 +259,10 @@ class IngredientCreateSerializer(serializers.Serializer):
 
 class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
     name = serializers.CharField(
-        write_only=True, required=True, source='title'
+        write_only=True,
+        required=True,
+        source='title',
+        max_length=MAX_LENGTH_TITLE
     )
     text = serializers.CharField(write_only=True, required=True)
     image = Base64ImageField(write_only=True, required=True)
@@ -294,6 +285,15 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, attrs):
+        if self.instance is not None and not self.partial:
+            if 'ingredients' not in self.initial_data:
+                raise serializers.ValidationError(
+                    {'ingredients': 'Это поле обязательно.'}
+                )
+            if 'tags' not in self.initial_data:
+                raise serializers.ValidationError(
+                    {'tags': 'Это поле обязательно.'}
+                )
         ingredients = attrs.get('ingredients')
         if ingredients is not None:
             if not ingredients:
@@ -306,10 +306,22 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                     {'ingredients': 'Ингредиенты не должны повторяться.'}
                 )
         tags = attrs.get('tags')
-        if tags is not None and not tags:
+        if tags is not None:
+            if not tags:
+                raise serializers.ValidationError(
+                    {'tags': 'Обязательное поле.'}
+                )
+            tag_ids = [tag.id for tag in tags]
+            if len(tag_ids) != len(set(tag_ids)):
+                raise serializers.ValidationError(
+                    {'tags': 'Теги не должны повторяться.'}
+                )
+        image = attrs.get('image')
+        if not image:
             raise serializers.ValidationError(
-                {'tags': 'Обязательное поле.'}
+                {'image': 'Поле image не может быть пустым.'}
             )
+
         return attrs
 
     def _create_ingredients(self, recipe, ingredients_data):
@@ -327,14 +339,10 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         instance.ingredient_amounts.all().delete()
         self._create_ingredients(instance, ingredients_data)
 
-    def create(self, validated_data, **kwargs):
-        author = kwargs.get('author')
-        if author is None:
-            author = self.context['request'].user
-
+    def create(self, validated_data):
         ingredients_data = validated_data.pop('ingredients')
         tags = validated_data.pop('tags')
-
+        author = self.context['request'].user
         recipe = Recipe.objects.create(
             **validated_data,
             author=author

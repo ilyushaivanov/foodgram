@@ -2,7 +2,7 @@ from django.db.models import Sum
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status, viewsets
+from rest_framework import filters, status, viewsets, serializers
 from rest_framework.decorators import action
 from rest_framework.permissions import (AllowAny, IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
@@ -12,7 +12,7 @@ from djoser.views import UserViewSet as DjoserUserViewSet
 
 from foodgram.models import (Favorite, Follow, Ingredient, Recipe,
                              RecipeIngredient, ShoppingCart, Tag,
-                             User)
+                             User, Profile)
 
 from .filters import RecipeFilter
 from .permissions import IsAuthorOrReadOnly
@@ -47,7 +47,7 @@ class UserViewSet(DjoserUserViewSet):
         'put'
     ], permission_classes=[IsAuthenticated], url_path='me/avatar')
     def avatar(self, request):
-        profile = request.user.profile
+        profile, _ = Profile.objects.get_or_create(user=request.user)
         serializer = AvatarSerializer(profile, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -56,7 +56,7 @@ class UserViewSet(DjoserUserViewSet):
 
     @avatar.mapping.delete
     def delete_avatar(self, request):
-        profile = request.user.profile
+        profile, _ = Profile.objects.get_or_create(user=request.user)
         if profile.avatar:
             profile.avatar.delete()
             profile.save()
@@ -139,13 +139,19 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        recipe = serializer.save(author=request.user)
-        output_serializer = RecipeSerializer(
-            recipe, context={'request': request}
+        self.perform_create(serializer)
+        read_serializer = RecipeSerializer(
+            serializer.instance, context={'request': request}
         )
-        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            read_serializer.data,
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
 
     def update(self, request, *args, **kwargs):
+        self._validate_required_fields(request.data)
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         serializer = self.get_serializer(
@@ -153,10 +159,28 @@ class RecipeViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        output_serializer = RecipeSerializer(
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance = self.get_object()
+
+        read_serializer = RecipeSerializer(
             instance, context={'request': request}
         )
-        return Response(output_serializer.data)
+        return Response(read_serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def _validate_required_fields(self, data):
+        if 'ingredients' not in data:
+            raise serializers.ValidationError(
+                {'ingredients': 'Это поле обязательно.'}
+            )
+        if 'tags' not in data:
+            raise serializers.ValidationError(
+                {'tags': 'Это поле обязательно.'}
+            )
 
     @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):
