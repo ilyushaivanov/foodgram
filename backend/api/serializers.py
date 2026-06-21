@@ -93,7 +93,7 @@ class FollowCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = ['user', 'author']
-        read_only_fields = ['user',]
+        read_only_fields = ['user']
 
     def validate(self, attrs):
         user = self.context['request'].user
