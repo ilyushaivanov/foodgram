@@ -1,11 +1,8 @@
 from django.contrib import admin
-from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import (Favorite, Follow, Ingredient, Profile, Recipe,
-                     RecipeIngredient, ShoppingCart, Tag)
-
-User = get_user_model()
+from .models import (Favorite, Follow, Ingredient, Recipe, RecipeIngredient,
+                     ShoppingCart, Tag, User)
 
 
 class UserAdmin(BaseUserAdmin):
@@ -13,21 +10,14 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ('username', 'email')
 
 
-admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
-
-
-@admin.register(Profile)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'avatar')
-    search_fields = ('user__username', 'user__email')
 
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ('title', 'slug')
-    search_fields = ('title',)
-    prepopulated_fields = {'slug': ('title',)}
+    list_display = ('name', 'slug')
+    search_fields = ('name',)
+    prepopulated_fields = {'slug': ('name',)}
 
 
 @admin.register(Ingredient)

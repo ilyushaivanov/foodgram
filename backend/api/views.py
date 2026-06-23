@@ -2,26 +2,24 @@ from django.db.models import Sum
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status, viewsets, serializers
+from djoser.views import UserViewSet as DjoserUserViewSet
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import (AllowAny, IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
-from rest_framework.pagination import LimitOffsetPagination
-from djoser.views import UserViewSet as DjoserUserViewSet
 
 from foodgram.models import (Favorite, Follow, Ingredient, Recipe,
-                             RecipeIngredient, ShoppingCart, Tag,
-                             User, Profile)
+                             RecipeIngredient, ShoppingCart, Tag, User)
 
 from .filters import RecipeFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, FavoriteCreateSerializer,
-                          IngredientSerializer, RecipeCreateUpdateSerializer,
-                          RecipeSerializer, ShoppingCartCreateSerializer,
-                          SubscriptionSerializer, TagSerializer,
-                          UserSerializer, FollowCreateSerializer,
-                          FavoriteAddResponseSerializer)
+                          FollowCreateSerializer, IngredientSerializer,
+                          RecipeCreateUpdateSerializer, RecipeSerializer,
+                          ShoppingCartCreateSerializer, SubscriptionSerializer,
+                          TagSerializer, UserSerializer)
 
 
 class UserViewSet(DjoserUserViewSet):
@@ -47,19 +45,19 @@ class UserViewSet(DjoserUserViewSet):
         'put'
     ], permission_classes=[IsAuthenticated], url_path='me/avatar')
     def avatar(self, request):
-        profile, _ = Profile.objects.get_or_create(user=request.user)
-        serializer = AvatarSerializer(profile, data=request.data)
+        user = request.user
+        serializer = AvatarSerializer(user, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        avatar_url = request.build_absolute_uri(profile.avatar.url)
+        avatar_url = request.build_absolute_uri(user.avatar.url)
         return Response({'avatar': avatar_url}, status=status.HTTP_200_OK)
 
     @avatar.mapping.delete
     def delete_avatar(self, request):
-        profile, _ = Profile.objects.get_or_create(user=request.user)
-        if profile.avatar:
-            profile.avatar.delete()
-            profile.save()
+        user = request.user
+        if user.avatar:
+            user.avatar.delete()
+            user.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=[
@@ -86,13 +84,7 @@ class UserViewSet(DjoserUserViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        response_serializer = SubscriptionSerializer(
-            author,
-            context={'request': request}
-        )
-        return Response(
-            response_serializer.data, status=status.HTTP_201_CREATED
-        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @subscribe.mapping.delete
     def unsubscribe(self, request, pk=None, *args, **kwargs):
@@ -106,6 +98,9 @@ class UserViewSet(DjoserUserViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
@@ -136,52 +131,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return RecipeCreateUpdateSerializer
         return RecipeSerializer
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        read_serializer = RecipeSerializer(
-            serializer.instance, context={'request': request}
-        )
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            read_serializer.data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
-
-    def update(self, request, *args, **kwargs):
-        self._validate_required_fields(request.data)
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(
-            instance, data=request.data, partial=partial
-        )
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
-        if getattr(instance, '_prefetched_objects_cache', None):
-            instance = self.get_object()
-
-        read_serializer = RecipeSerializer(
-            instance, context={'request': request}
-        )
-        return Response(read_serializer.data)
-
-    def partial_update(self, request, *args, **kwargs):
-        kwargs['partial'] = True
-        return self.update(request, *args, **kwargs)
-
-    def _validate_required_fields(self, data):
-        if 'ingredients' not in data:
-            raise serializers.ValidationError(
-                {'ingredients': 'Это поле обязательно.'}
-            )
-        if 'tags' not in data:
-            raise serializers.ValidationError(
-                {'tags': 'Это поле обязательно.'}
-            )
-
     @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):
         recipe = self.get_object()
@@ -200,10 +149,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        response_serializer = FavoriteAddResponseSerializer(recipe)
-        return Response(
-            response_serializer.data, status=status.HTTP_201_CREATED
-        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @favorite.mapping.delete
     def delete_favorite(self, request, pk=None):
@@ -229,10 +175,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        response_serializer = FavoriteAddResponseSerializer(recipe)
-        return Response(
-            response_serializer.data, status=status.HTTP_201_CREATED
-        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @shopping_cart.mapping.delete
     def delete_shopping_cart(self, request, pk=None):
@@ -274,6 +217,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
             'Content-Disposition'
         ] = 'attachment; filename="shopping_cart.txt"'
         return response
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 def redirect_to_recipe(request, code):

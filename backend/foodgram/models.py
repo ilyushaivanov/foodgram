@@ -1,29 +1,38 @@
 import secrets
 import string
 
-from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.auth.models import AbstractUser
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from foodgram.constants import (
-    MAX_LENGTH_TITLE,
-    MAX_LENGTH_SLUG,
-    MAX_LENGTH_UNIT,
-    MAX_LENGTH_CODE,
-    MIN_COOKING_TIME,
-    MAX_COOKING_TIME,
-    MIN_AMOUNT_VALUE
-)
-
-User = get_user_model()
+from foodgram.constants import (MAX_COOKING_TIME, MAX_LENGTH_CODE,
+                                MAX_LENGTH_INGREDIENT_NAME,
+                                MAX_LENGTH_MEASUREMENT_UNIT,
+                                MAX_LENGTH_RECIPE_NAME, MAX_LENGTH_TAG_NAME,
+                                MAX_LENGTH_TAG_SLUG,
+                                MIN_AMOUNT_VALUE, MIN_COOKING_TIME)
 
 
-class Profile(models.Model):
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name='profile'
+class User(AbstractUser):
+    email = models.EmailField(
+        max_length=254,
+        unique=True,
+        blank=False,
+        error_messages={
+            'unique': 'Пользователь с таким email уже существует.'
+        },
+        verbose_name='email address'
+    )
+    first_name = models.CharField(
+        max_length=150,
+        blank=False,
+        verbose_name='first name'
+    )
+    last_name = models.CharField(
+        max_length=150,
+        blank=False,
+        verbose_name='last name'
     )
     avatar = models.ImageField(
         upload_to='users/',
@@ -32,22 +41,23 @@ class Profile(models.Model):
         verbose_name='Аватар'
     )
 
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+
     class Meta:
-        verbose_name = 'Профиль'
-        verbose_name_plural = 'Профили'
-        ordering = ['user__username']
+        ordering = ('username',)
 
     def __str__(self):
-        return f'{self.user.username} profile'
+        return self.email
 
 
 class Tag(models.Model):
-    title = models.CharField(
-        max_length=MAX_LENGTH_TITLE,
+    name = models.CharField(
+        max_length=MAX_LENGTH_TAG_NAME,
         verbose_name='Название'
     )
     slug = models.SlugField(
-        max_length=MAX_LENGTH_SLUG,
+        max_length=MAX_LENGTH_TAG_SLUG,
         unique=True,
         verbose_name='Slug',
     )
@@ -55,20 +65,20 @@ class Tag(models.Model):
     class Meta:
         verbose_name = 'Тег'
         verbose_name_plural = 'Теги'
-        ordering = ['title']
+        ordering = ('name',)
 
     def __str__(self):
-        return self.title
+        return self.name
 
 
 class Ingredient(models.Model):
     name = models.CharField(
-        max_length=MAX_LENGTH_TITLE,
+        max_length=MAX_LENGTH_INGREDIENT_NAME,
         unique=True,
         verbose_name='Название'
     )
     measurement_unit = models.CharField(
-        max_length=MAX_LENGTH_UNIT,
+        max_length=MAX_LENGTH_MEASUREMENT_UNIT,
         default='г',
         verbose_name='Единица измерения'
     )
@@ -76,7 +86,7 @@ class Ingredient(models.Model):
     class Meta:
         verbose_name = 'Ингредиент'
         verbose_name_plural = 'Ингредиенты'
-        ordering = ['name']
+        ordering = ('name',)
 
     def __str__(self):
         return f'{self.name} ({self.measurement_unit})'
@@ -90,26 +100,17 @@ class Recipe(models.Model):
         verbose_name='Автор Рецепта',
     )
     title = models.CharField(
-        max_length=MAX_LENGTH_TITLE,
-        verbose_name='Название'
+        max_length=MAX_LENGTH_RECIPE_NAME, verbose_name='Название'
     )
-    image = models.ImageField(
-        upload_to='recipes/',
-        verbose_name='Картинка'
-    )
-    text = models.CharField(
-        verbose_name='Текстовое описание'
-    )
+    image = models.ImageField(upload_to='recipes/', verbose_name='Картинка')
+    text = models.TextField(verbose_name='Текстовое описание')
     ingredients = models.ManyToManyField(
         Ingredient,
         through='RecipeIngredient',
         through_fields=('recipe', 'ingredient'),
         verbose_name='Ингредиенты'
     )
-    tags = models.ManyToManyField(
-        Tag,
-        verbose_name='Теги'
-    )
+    tags = models.ManyToManyField(Tag, verbose_name='Теги')
     cooking_time = models.PositiveSmallIntegerField(
         verbose_name='Время приготовления (мин)',
         validators=[
@@ -118,8 +119,7 @@ class Recipe(models.Model):
         ]
     )
     pub_date = models.DateTimeField(
-        default=timezone.now,
-        verbose_name='Дата публикации'
+        default=timezone.now, verbose_name='Дата публикации'
     )
     short_code = models.CharField(
         max_length=MAX_LENGTH_CODE,
@@ -128,6 +128,14 @@ class Recipe(models.Model):
         null=True,
         verbose_name='Короткий код'
     )
+
+    class Meta:
+        verbose_name = 'Рецепт'
+        verbose_name_plural = 'Рецепты'
+        ordering = ('-pub_date',)
+
+    def __str__(self):
+        return self.title
 
     def generate_unique_code(self, length=6):
         alphabet = string.ascii_letters + string.digits
@@ -140,14 +148,6 @@ class Recipe(models.Model):
         if not self.short_code:
             self.short_code = self.generate_unique_code()
         super().save(*args, **kwargs)
-
-    class Meta:
-        verbose_name = 'Рецепт'
-        verbose_name_plural = 'Рецепты'
-        ordering = ['-pub_date']
-
-    def __str__(self):
-        return self.title
 
 
 class RecipeIngredient(models.Model):
@@ -170,7 +170,7 @@ class RecipeIngredient(models.Model):
     class Meta:
         verbose_name = 'Ингредиент рецепта'
         verbose_name_plural = 'Ингредиенты рецепта'
-        ordering = ['recipe', 'ingredient']
+        ordering = ('recipe', 'ingredient')
         constraints = [
             models.UniqueConstraint(
                 fields=['recipe', 'ingredient'],
@@ -198,7 +198,7 @@ class Favorite(models.Model):
     class Meta:
         verbose_name = 'Избранное'
         verbose_name_plural = 'Избранное'
-        ordering = ['user', 'recipe']
+        ordering = ('user', 'recipe')
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'recipe'],
@@ -225,7 +225,7 @@ class ShoppingCart(models.Model):
     class Meta:
         verbose_name = 'Корзина покупок'
         verbose_name_plural = 'Корзина покупок'
-        ordering = ['user', 'recipe']
+        ordering = ('user', 'recipe')
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'recipe'],
@@ -252,7 +252,7 @@ class Follow(models.Model):
     class Meta:
         verbose_name = 'Подписка'
         verbose_name_plural = 'Подписки'
-        ordering = ['user', 'author']
+        ordering = ('user', 'author')
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'author'],
