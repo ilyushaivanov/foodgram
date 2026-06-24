@@ -10,28 +10,25 @@ from foodgram.constants import (MAX_COOKING_TIME, MAX_LENGTH_CODE,
                                 MAX_LENGTH_INGREDIENT_NAME,
                                 MAX_LENGTH_MEASUREMENT_UNIT,
                                 MAX_LENGTH_RECIPE_NAME, MAX_LENGTH_TAG_NAME,
-                                MAX_LENGTH_TAG_SLUG,
+                                MAX_LENGTH_TAG_SLUG, MAX_LENGTH_FIRST_NAME,
+                                MAX_LENGTH_LAST_NAME, MAX_AMOUNT_VALUE,
                                 MIN_AMOUNT_VALUE, MIN_COOKING_TIME)
 
 
 class User(AbstractUser):
     email = models.EmailField(
-        max_length=254,
         unique=True,
-        blank=False,
         error_messages={
             'unique': 'Пользователь с таким email уже существует.'
         },
         verbose_name='email address'
     )
     first_name = models.CharField(
-        max_length=150,
-        blank=False,
+        max_length=MAX_LENGTH_FIRST_NAME,
         verbose_name='first name'
     )
     last_name = models.CharField(
-        max_length=150,
-        blank=False,
+        max_length=MAX_LENGTH_LAST_NAME,
         verbose_name='last name'
     )
     avatar = models.ImageField(
@@ -99,10 +96,14 @@ class Recipe(models.Model):
         related_name='recipes',
         verbose_name='Автор Рецепта',
     )
-    title = models.CharField(
-        max_length=MAX_LENGTH_RECIPE_NAME, verbose_name='Название'
+    name = models.CharField(
+        max_length=MAX_LENGTH_RECIPE_NAME,
+        verbose_name='Название'
     )
-    image = models.ImageField(upload_to='recipes/', verbose_name='Картинка')
+    image = models.ImageField(
+        upload_to='recipes/',
+        verbose_name='Картинка'
+    )
     text = models.TextField(verbose_name='Текстовое описание')
     ingredients = models.ManyToManyField(
         Ingredient,
@@ -119,7 +120,8 @@ class Recipe(models.Model):
         ]
     )
     pub_date = models.DateTimeField(
-        default=timezone.now, verbose_name='Дата публикации'
+        default=timezone.now,
+        verbose_name='Дата публикации'
     )
     short_code = models.CharField(
         max_length=MAX_LENGTH_CODE,
@@ -135,7 +137,12 @@ class Recipe(models.Model):
         ordering = ('-pub_date',)
 
     def __str__(self):
-        return self.title
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.short_code:
+            self.short_code = self.generate_unique_code()
+        super().save(*args, **kwargs)
 
     def generate_unique_code(self, length=6):
         alphabet = string.ascii_letters + string.digits
@@ -143,11 +150,6 @@ class Recipe(models.Model):
             code = ''.join(secrets.choice(alphabet) for _ in range(length))
             if not Recipe.objects.filter(short_code=code).exists():
                 return code
-
-    def save(self, *args, **kwargs):
-        if not self.short_code:
-            self.short_code = self.generate_unique_code()
-        super().save(*args, **kwargs)
 
 
 class RecipeIngredient(models.Model):
@@ -164,7 +166,10 @@ class RecipeIngredient(models.Model):
     )
     amount = models.PositiveSmallIntegerField(
         verbose_name='Количество',
-        validators=[MinValueValidator(MIN_AMOUNT_VALUE)]
+        validators=[
+            MinValueValidator(MIN_AMOUNT_VALUE),
+            MaxValueValidator(MAX_AMOUNT_VALUE)
+        ]
     )
 
     class Meta:

@@ -12,7 +12,6 @@ from rest_framework.response import Response
 
 from foodgram.models import (Favorite, Follow, Ingredient, Recipe,
                              RecipeIngredient, ShoppingCart, Tag, User)
-
 from .filters import RecipeFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, FavoriteCreateSerializer,
@@ -79,11 +78,11 @@ class UserViewSet(DjoserUserViewSet):
     def subscribe(self, request, pk=None, *args, **kwargs):
         author = self.get_object()
         serializer = FollowCreateSerializer(
-            data={'author': author.id},
+            data={'author': author.id, 'user': request.user.id},
             context={'request': request}
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+        serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @subscribe.mapping.delete
@@ -118,7 +117,6 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
 
 class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all().order_by('-id')
-    lookup_field = 'pk'
     permission_classes = [IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
@@ -141,11 +139,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def favorite(self, request, pk=None):
         recipe = self.get_object()
         serializer = FavoriteCreateSerializer(
-            data={'recipe': recipe.id},
+            data={'recipe': recipe.id, 'user': request.user.id},
             context={'request': request}
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+        serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @favorite.mapping.delete
@@ -167,11 +165,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def shopping_cart(self, request, pk=None):
         recipe = self.get_object()
         serializer = ShoppingCartCreateSerializer(
-            data={'recipe': recipe.id},
+            data={'recipe': recipe.id, 'user': request.user.id},
             context={'request': request}
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+        serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @shopping_cart.mapping.delete
