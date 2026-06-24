@@ -202,16 +202,12 @@ class RecipeSerializer(serializers.ModelSerializer):
         )
 
 
-class IngredientCreateSerializer(serializers.ModelSerializer):
+class IngredientCreateSerializer(serializers.Serializer):
     id = serializers.PrimaryKeyRelatedField(
-        source='ingredient',
         queryset=Ingredient.objects.all(),
         required=True
     )
-
-    class Meta:
-        model = RecipeIngredient
-        fields = ('id', 'amount')
+    amount = serializers.IntegerField(min_value=1, required=True)
 
 
 class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
@@ -251,7 +247,6 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {'ingredients': 'Ингредиенты не должны повторяться.'}
                 )
-
         tags = attrs.get('tags')
         if tags is not None:
             if not tags:
@@ -263,8 +258,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {'tags': 'Теги не должны повторяться.'}
                 )
-
-        if self.instance is not None and not self.partial:
+        if self.instance is not None:
             if 'ingredients' not in self.initial_data:
                 raise serializers.ValidationError(
                     {'ingredients': 'Это поле обязательно.'}
