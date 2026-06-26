@@ -1,7 +1,6 @@
 from drf_extra_fields.fields import Base64ImageField
 from rest_framework import serializers
 
-from foodgram.constants import MAX_LENGTH_TITLE
 from foodgram.models import (Favorite, Follow, Ingredient, Recipe,
                              RecipeIngredient, ShoppingCart, Tag, User)
 
@@ -59,11 +58,6 @@ class FollowCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         user = attrs.get('user')
-        request = self.context.get('request')
-        if user != request.user:
-            raise serializers.ValidationError(
-                'Нельзя подписаться от имени другого пользователя.'
-            )
         author = attrs.get('author')
         if user == author:
             raise serializers.ValidationError('Нельзя подписаться на себя')
@@ -133,11 +127,6 @@ class FavoriteCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         user = attrs.get('user')
-        request = self.context.get('request')
-        if user != request.user:
-            raise serializers.ValidationError(
-                'Нельзя добавить в избранное от имени другого пользователя.'
-            )
         recipe = attrs.get('recipe')
         if Favorite.objects.filter(user=user, recipe=recipe).exists():
             raise serializers.ValidationError('Уже в избранном')
@@ -158,11 +147,6 @@ class ShoppingCartCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         user = attrs.get('user')
-        request = self.context.get('request')
-        if user != request.user:
-            raise serializers.ValidationError(
-                'Нельзя добавить в корзину от имени другого пользователя.'
-            )
         recipe = attrs.get('recipe')
         if ShoppingCart.objects.filter(user=user, recipe=recipe).exists():
             raise serializers.ValidationError('Уже в корзине')
@@ -213,42 +197,41 @@ class RecipeSerializer(serializers.ModelSerializer):
         )
 
 
-class IngredientCreateSerializer(serializers.Serializer):
-    """
-    Я пытался сделать его модельным но у меня не получилось,
-    полностью ломается все.
-    """
+class IngredientCreateSerializer(serializers.ModelSerializer):
     id = serializers.PrimaryKeyRelatedField(
+        source='ingredient',
         queryset=Ingredient.objects.all(),
         required=True
     )
-    amount = serializers.IntegerField(min_value=1, required=True)
+
+    class Meta:
+        model = RecipeIngredient
+        fields = ('id', 'amount')
 
 
 class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(
-        write_only=True, required=True,
-        max_length=MAX_LENGTH_TITLE
-    )
-    text = serializers.CharField(write_only=True, required=True)
     image = Base64ImageField(write_only=True, required=True)
-    ingredients = serializers.ListField(
-        child=IngredientCreateSerializer(),
-        write_only=True,
-        required=True
+    ingredients = IngredientCreateSerializer(
+        many=True, write_only=True, required=True
     )
     tags = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Tag.objects.all(),
         required=True
     )
-    cooking_time = serializers.IntegerField(required=True, min_value=1)
 
     class Meta:
         model = Recipe
         fields = (
             'name', 'text', 'image', 'ingredients', 'tags', 'cooking_time'
         )
+        extra_kwargs = {
+            'name': {'write_only': True, 'required': True},
+            'text': {'write_only': True, 'required': True},
+            'cooking_time': {
+                'write_only': True, 'required': True, 'min_value': 1
+            },
+        }
 
     def validate(self, attrs):
         ingredients = attrs.get('ingredients')
@@ -257,7 +240,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {'ingredients': 'Обязательное поле.'}
                 )
-            ingredient_ids = [item['id'].id for item in ingredients]
+            ingredient_ids = [item['ingredient'].pk for item in ingredients]
             if len(ingredient_ids) != len(set(ingredient_ids)):
                 raise serializers.ValidationError(
                     {'ingredients': 'Ингредиенты не должны повторяться.'}
@@ -301,7 +284,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         recipe_ingredients = [
             RecipeIngredient(
                 recipe=recipe,
-                ingredient=item['id'],
+                ingredient=item['ingredient'],
                 amount=item['amount']
             )
             for item in ingredients_data
