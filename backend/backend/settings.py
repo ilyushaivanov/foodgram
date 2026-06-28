@@ -31,7 +31,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', get_random_secret_key())
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['158.160.90.3', '127.0.0.1', 'localhost', 'foodgram0891.duckdns.org']
+ALLOWED_HOSTS = ['158.160.240.82', '127.0.0.1', 'localhost', 'foodgram0891.duckdns.org']
 
 
 # Application definition
