@@ -29,8 +29,8 @@ cd foodgram
 DOCKER_USERNAME: Ваш логин на Docker Hub
 DOCKER_PASSWORD: Пароль или токен доступа к Docker Hub
 HOST: Публичный IP-адрес вашего сервера
-USER: Имя пользователя для SSH (обычно ubuntu)
-SSH_KEY: SSH-ключ (содержимое файла id_rsa)
+USER: Имя пользователя для SSH
+SSH_KEY: SSH-ключ
 
 
 3. Подготовка сервера
