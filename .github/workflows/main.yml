@@ -119,8 +119,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          source: "infra/docker-compose.production.yml"
+          source: "infra/docker-compose.production.yml infra/nginx.conf"
           target: "foodgram"
       - name: Executing remote ssh commands to deploy
         uses: appleboy/ssh-action@v1
@@ -129,7 +128,6 @@ jobs:
           host: ${{secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             cd foodgram/infra/
             sudo docker compose -f docker-compose.production.yml pull
