@@ -10,7 +10,7 @@
 ## 🚀 Деплой проекта
 
 Проект развернут по адресу:  
-[https://foodgram0891.duckdns.org/](https://foodgram0891.duckdns.org/)
+[http://foodgram0891.duckdns.org/]
 
 ---
 
