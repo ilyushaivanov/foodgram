@@ -216,5 +216,5 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
 def redirect_to_recipe(request, code):
     recipe = get_object_or_404(Recipe, short_code=code)
-    redirect_url = request.build_absolute_uri(f'/api/recipes/{recipe.id}/')
+    redirect_url = request.build_absolute_uri(f'/recipes/{recipe.id}/')
     return HttpResponseRedirect(redirect_url)
