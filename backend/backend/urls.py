@@ -19,8 +19,11 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from api.views import redirect_to_recipe
+
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('s/<str:code>/', redirect_to_recipe, name='short-link-redirect'),
     path('api/', include('api.urls')),
 ]
 
